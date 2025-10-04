@@ -8,7 +8,7 @@ A high-performance Rust library for computing text similarity using multiple alg
     - Rolling hash algorithm for O(M) n-gram computation (M = text length)
     - Uses a fast FNV-1a hash for word hashing.
     - Memory efficient with iterator based design.
-- 📊 **Multiple Metrics**: BLEU, Jaccard, and ROUGE-N similarity algorithms
+- 📊 **Multiple Metrics**: BLEU, Jaccard, ROUGE-N, and Cosine Similarity algorithms
 - 🔤 **Unicode Support**: Full Unicode support with proper case folding
 - ⚙️ **Flexible**: Case-sensitive or case-insensitive comparison
 - 🎯 **Generic N-grams**: Compile-time n-gram size specification (1-gram to 32-gram)
@@ -87,4 +87,26 @@ println!("ROUGE-1 score: {}", score);
 // ROUGE-2 (bigram recall)
 let score = rouge_n_similarity::<2>(reference, candidate, false);
 println!("ROUGE-2 score: {}", score);
+```
+
+### Cosine Similarity
+
+A vector-based similarity metric that measures the cosine of the angle between two vectors. The algorithm is embedding-agnostic—it simply computes similarity between any two numeric vectors.
+
+**Formula:** `cosine = dot(A, B) / (||A|| × ||B||)`, normalized to [0, 1]
+
+**Key characteristics:**
+- Works with any f64 vector embeddings (word2vec, BERT, custom features, etc.)
+- Normalized to [0, 1]
+- Single-pass computation of dot product and magnitudes
+- Returns error if vectors have different lengths or contain zero vectors
+
+```rust
+use text_similarity_metrics::cosine_similarity;
+
+let embedding1 = vec![0.5, 0.8, 0.3];
+let embedding2 = vec![0.6, 0.7, 0.4];
+
+let score = cosine_similarity(&embedding1, &embedding2).unwrap();
+println!("Similarity: {:.3}", score);
 ```
