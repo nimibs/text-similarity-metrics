@@ -1,7 +1,32 @@
+//! BLEU (Bilingual Evaluation Understudy) similarity metric.
+
 use crate::{hash_iterators::{
     CaseInsensitiveCharHasher, CaseSensitiveCharHasher, CharHasher, NgramHashIteratorBuilder,
 }, metrics::shared::{hash_counts, intersection_count}};
 
+/// Computes BLEU similarity between two text strings.
+///
+/// BLEU measures n-gram precision with a brevity penalty. Uses up to 4-grams
+/// and penalizes candidates shorter than the reference.
+///
+/// # Arguments
+///
+/// * `expected` - Reference text
+/// * `actual` - Candidate text to evaluate
+/// * `case_sensitive` - Whether to perform case-sensitive comparison
+///
+/// # Returns
+///
+/// Similarity score in [0, 1]: 1.0 = perfect match, 0.0 = no match
+///
+/// # Example
+///
+/// ```
+/// use text_similarity_metrics::bleu_similarity;
+///
+/// let score = bleu_similarity("the cat sat", "the cat sat", false);
+/// assert_eq!(score, 1.0);
+/// ```
 pub fn bleu_similarity(expected: &str, actual: &str, case_sensitive: bool) -> f64 {
     if case_sensitive {
         bleu_internal(expected, actual, CaseSensitiveCharHasher)
