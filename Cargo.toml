@@ -2,7 +2,7 @@
 name = "text-similarity-metrics"
 version = "0.1.0"
 edition = "2024"
-license = "mit"
+license = "MIT"
 description = "A high-performance Rust library for computing text similarity using multiple algorithms."
 repository = "https://github.com/nimibs/text-similarity-metrics"
 keywords = ["text", "similarity", "rouge", "bleu", "cosine"]
