@@ -102,29 +102,29 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
 
     let len = vec1.len();
     let simd_len = len / 4 * 4;
+    unsafe {
+        let mut dot_sum = _mm256_setzero_pd();
+        let mut norm1_sum = _mm256_setzero_pd();
+        let mut norm2_sum = _mm256_setzero_pd();
 
-    let mut dot_sum = _mm256_setzero_pd();
-    let mut norm1_sum = _mm256_setzero_pd();
-    let mut norm2_sum = _mm256_setzero_pd();
+        // Process 4 f64 values at a time
+        let mut i = 0;
+        while i < simd_len {
+            let v1 = _mm256_loadu_pd(vec1.as_ptr().add(i));
+            let v2 = _mm256_loadu_pd(vec2.as_ptr().add(i));
 
-    // Process 4 f64 values at a time
-    let mut i = 0;
-    while i < simd_len {
-        let v1 = _mm256_loadu_pd(vec1.as_ptr().add(i));
-        let v2 = _mm256_loadu_pd(vec2.as_ptr().add(i));
+            dot_sum = _mm256_fmadd_pd(v1, v2, dot_sum);
+            norm1_sum = _mm256_fmadd_pd(v1, v1, norm1_sum);
+            norm2_sum = _mm256_fmadd_pd(v2, v2, norm2_sum);
 
-        dot_sum = _mm256_fmadd_pd(v1, v2, dot_sum);
-        norm1_sum = _mm256_fmadd_pd(v1, v1, norm1_sum);
-        norm2_sum = _mm256_fmadd_pd(v2, v2, norm2_sum);
+            i += 4;
+        }
 
-        i += 4;
+        // Horizontal sum of the SIMD accumulators
+        let mut dot_product = horizontal_sum_avx2(dot_sum);
+        let mut norm1 = horizontal_sum_avx2(norm1_sum);
+        let mut norm2 = horizontal_sum_avx2(norm2_sum);
     }
-
-    // Horizontal sum of the SIMD accumulators
-    let mut dot_product = horizontal_sum_avx2(dot_sum);
-    let mut norm1 = horizontal_sum_avx2(norm1_sum);
-    let mut norm2 = horizontal_sum_avx2(norm2_sum);
-
     // Handle remaining elements
     while i < len {
         dot_product += vec1[i] * vec2[i];
@@ -141,8 +141,10 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
 #[inline]
 unsafe fn horizontal_sum_avx2(v: __m256d) -> f64 {
     let arr = [0.0f64; 4];
-    _mm256_storeu_pd(arr.as_ptr() as *mut f64, v);
-    arr[0] + arr[1] + arr[2] + arr[3]
+    unsafe {
+        _mm256_storeu_pd(arr.as_ptr() as *mut f64, v);
+        arr[0] + arr[1] + arr[2] + arr[3]
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -152,29 +154,29 @@ unsafe fn compute_dot_and_norms_avx512(vec1: &[f64], vec2: &[f64]) -> (f64, f64,
 
     let len = vec1.len();
     let simd_len = len / 8 * 8;
+    unsafe {
+        let mut dot_sum = _mm512_setzero_pd();
+        let mut norm1_sum = _mm512_setzero_pd();
+        let mut norm2_sum = _mm512_setzero_pd();
 
-    let mut dot_sum = _mm512_setzero_pd();
-    let mut norm1_sum = _mm512_setzero_pd();
-    let mut norm2_sum = _mm512_setzero_pd();
+        // Process 8 f64 values at a time
+        let mut i = 0;
+        while i < simd_len {
+            let v1 = _mm512_loadu_pd(vec1.as_ptr().add(i));
+            let v2 = _mm512_loadu_pd(vec2.as_ptr().add(i));
 
-    // Process 8 f64 values at a time
-    let mut i = 0;
-    while i < simd_len {
-        let v1 = _mm512_loadu_pd(vec1.as_ptr().add(i));
-        let v2 = _mm512_loadu_pd(vec2.as_ptr().add(i));
+            dot_sum = _mm512_fmadd_pd(v1, v2, dot_sum);
+            norm1_sum = _mm512_fmadd_pd(v1, v1, norm1_sum);
+            norm2_sum = _mm512_fmadd_pd(v2, v2, norm2_sum);
 
-        dot_sum = _mm512_fmadd_pd(v1, v2, dot_sum);
-        norm1_sum = _mm512_fmadd_pd(v1, v1, norm1_sum);
-        norm2_sum = _mm512_fmadd_pd(v2, v2, norm2_sum);
+            i += 8;
+        }
 
-        i += 8;
+        // Horizontal sum of the SIMD accumulators
+        let mut dot_product = _mm512_reduce_add_pd(dot_sum);
+        let mut norm1 = _mm512_reduce_add_pd(norm1_sum);
+        let mut norm2 = _mm512_reduce_add_pd(norm2_sum);
     }
-
-    // Horizontal sum of the SIMD accumulators
-    let mut dot_product = _mm512_reduce_add_pd(dot_sum);
-    let mut norm1 = _mm512_reduce_add_pd(norm1_sum);
-    let mut norm2 = _mm512_reduce_add_pd(norm2_sum);
-
     // Handle remaining elements
     while i < len {
         dot_product += vec1[i] * vec2[i];
