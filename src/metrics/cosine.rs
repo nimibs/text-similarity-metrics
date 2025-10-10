@@ -98,11 +98,11 @@ fn compute_dot_and_norms_scalar(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "fma")]
 unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
-    use std::arch::x86_64::*;
-
-    let len = vec1.len();
-    let simd_len = len / 4 * 4;
     unsafe {
+        use std::arch::x86_64::*;
+
+        let len = vec1.len();
+        let simd_len = len / 4 * 4;
         let mut dot_sum = _mm256_setzero_pd();
         let mut norm1_sum = _mm256_setzero_pd();
         let mut norm2_sum = _mm256_setzero_pd();
@@ -124,16 +124,17 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
         let mut dot_product = horizontal_sum_avx2(dot_sum);
         let mut norm1 = horizontal_sum_avx2(norm1_sum);
         let mut norm2 = horizontal_sum_avx2(norm2_sum);
-    }
-    // Handle remaining elements
-    while i < len {
-        dot_product += vec1[i] * vec2[i];
-        norm1 += vec1[i] * vec1[i];
-        norm2 += vec2[i] * vec2[i];
-        i += 1;
-    }
 
-    (dot_product, norm1, norm2)
+        // Handle remaining elements
+        while i < len {
+            dot_product += vec1[i] * vec2[i];
+            norm1 += vec1[i] * vec1[i];
+            norm2 += vec2[i] * vec2[i];
+            i += 1;
+        }
+
+        (dot_product, norm1, norm2)
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -150,11 +151,11 @@ unsafe fn horizontal_sum_avx2(v: __m256d) -> f64 {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
 unsafe fn compute_dot_and_norms_avx512(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
-    use std::arch::x86_64::*;
-
-    let len = vec1.len();
-    let simd_len = len / 8 * 8;
     unsafe {
+        use std::arch::x86_64::*;
+
+        let len = vec1.len();
+        let simd_len = len / 8 * 8;
         let mut dot_sum = _mm512_setzero_pd();
         let mut norm1_sum = _mm512_setzero_pd();
         let mut norm2_sum = _mm512_setzero_pd();
@@ -176,16 +177,17 @@ unsafe fn compute_dot_and_norms_avx512(vec1: &[f64], vec2: &[f64]) -> (f64, f64,
         let mut dot_product = _mm512_reduce_add_pd(dot_sum);
         let mut norm1 = _mm512_reduce_add_pd(norm1_sum);
         let mut norm2 = _mm512_reduce_add_pd(norm2_sum);
-    }
-    // Handle remaining elements
-    while i < len {
-        dot_product += vec1[i] * vec2[i];
-        norm1 += vec1[i] * vec1[i];
-        norm2 += vec2[i] * vec2[i];
-        i += 1;
-    }
 
-    (dot_product, norm1, norm2)
+        // Handle remaining elements
+        while i < len {
+            dot_product += vec1[i] * vec2[i];
+            norm1 += vec1[i] * vec1[i];
+            norm2 += vec2[i] * vec2[i];
+            i += 1;
+        }
+
+        (dot_product, norm1, norm2)
+    }
 }
 
 #[cfg(target_arch = "aarch64")]
