@@ -1,11 +1,22 @@
+//! Cosine similarity computation with SIMD optimizations.
+
 use std::fmt;
 
 #[cfg(target_arch = "aarch64")]
 use std::arch::is_aarch64_feature_detected;
 
+/// Error type for cosine similarity computation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CosineSimilarityError {
-    DifferentLengths { len1: usize, len2: usize },
+    /// The input vectors have different lengths.
+    DifferentLengths {
+        /// Length of the first vector
+        len1: usize,
+        /// Length of the second vector
+        len2: usize,
+    },
+    /// One or both input vectors are zero vectors (all elements are 0.0).
+    /// Cosine similarity is undefined for zero vectors.
     ZeroVector,
 }
 
@@ -24,7 +35,33 @@ impl fmt::Display for CosineSimilarityError {
 
 impl std::error::Error for CosineSimilarityError {}
 
-// Computes cosine similarity between two vectors, normalized to [0, 1] range.
+/// Computes cosine similarity between two f64 vectors with SIMD optimizations.
+///
+/// Measures the cosine of the angle between vectors, normalized to [0, 1].
+/// Automatically uses AVX-512, AVX2, or NEON when available.
+///
+/// # Arguments
+///
+/// * `vec1` - First vector
+/// * `vec2` - Second vector (must be same length)
+///
+/// # Returns
+///
+/// Similarity in [0, 1]: 1.0 = same direction, 0.5 = orthogonal, 0.0 = opposite
+///
+/// # Errors
+///
+/// Returns error if vectors have different lengths or if either is a zero vector.
+///
+/// # Example
+///
+/// ```
+/// use text_similarity_metrics::cosine_similarity;
+///
+/// let v1 = vec![1.0, 2.0, 3.0];
+/// let v2 = vec![2.0, 4.0, 6.0];
+/// assert_eq!(cosine_similarity(&v1, &v2).unwrap(), 1.0);
+/// ```
 pub fn cosine_similarity(vec1: &[f64], vec2: &[f64]) -> Result<f64, CosineSimilarityError> {
     if vec1.len() != vec2.len() {
         return Err(CosineSimilarityError::DifferentLengths {

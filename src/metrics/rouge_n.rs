@@ -1,9 +1,35 @@
+//! ROUGE-N (Recall-Oriented Understudy for Gisting Evaluation) similarity metric.
+
 use crate::hash_iterators::{CharHasher, HashIterator,
     NgramHashIterator, NgramHashIteratorBuilder,
 };
 use crate::metrics::shared::{hash_counts, intersection_count};
 use crate::utils::assert_n_le_32;
 
+/// Computes ROUGE-N similarity between two text strings using character n-grams.
+///
+/// ROUGE-N measures text similarity using n-gram recall and precision, returning
+/// their harmonic mean (F1 score).
+///
+/// # Arguments
+///
+/// * `N` - The n-gram size (must be ≤ 32)
+/// * `expected` - Reference text
+/// * `actual` - Candidate text to evaluate
+/// * `case_sensitive` - Whether to perform case-sensitive comparison
+///
+/// # Returns
+///
+/// F1 score in [0, 1]: 1.0 = perfect match, 0.0 = no overlap
+///
+/// # Example
+///
+/// ```
+/// use text_similarity_metrics::rouge_n_similarity;
+///
+/// let score = rouge_n_similarity::<1>("the cat sat", "the dog sat", false);
+/// assert!(score > 0.0 && score < 1.0);
+/// ```
 pub fn rouge_n_similarity<const N: usize>(
     expected: &str,
     actual: &str,

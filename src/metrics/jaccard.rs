@@ -1,3 +1,5 @@
+//! Jaccard similarity metric for n-grams.
+
 use crate::{
     hash_iterators::{CharHasher, HashIterator, NgramHashIterator, NgramHashIteratorBuilder},
     utils::assert_n_le_32,
@@ -5,6 +7,29 @@ use crate::{
 use nohash_hasher::BuildNoHashHasher;
 type NoHasherHashSet = std::collections::HashSet<u64, BuildNoHashHasher<u64>>;
 
+/// Computes Jaccard similarity between two text strings using character n-grams.
+///
+/// Measures the similarity between sets of n-grams by computing |A ∩ B| / |A ∪ B|.
+///
+/// # Arguments
+///
+/// * `N` - The n-gram size (must be ≤ 32)
+/// * `expected` - First text string
+/// * `actual` - Second text string
+/// * `case_sensitive` - Whether to perform case-sensitive comparison
+///
+/// # Returns
+///
+/// Similarity score in [0, 1]: 1.0 = identical, 0.0 = no overlap
+///
+/// # Example
+///
+/// ```
+/// use text_similarity_metrics::jaccard_n_similarity;
+///
+/// let score = jaccard_n_similarity::<1>("hello world", "hello rust", false);
+/// assert_eq!(score, 1.0 / 3.0); // Common: "hello", " " | Union: all unique chars
+/// ```
 pub fn jaccard_n_similarity<const N: usize>(
     expected: &str,
     actual: &str,
