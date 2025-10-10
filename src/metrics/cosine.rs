@@ -114,13 +114,8 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
         let v1 = _mm256_loadu_pd(vec1.as_ptr().add(i));
         let v2 = _mm256_loadu_pd(vec2.as_ptr().add(i));
 
-        // dot_product += v1 * v2
         dot_sum = _mm256_fmadd_pd(v1, v2, dot_sum);
-
-        // norm1 += v1 * v1
         norm1_sum = _mm256_fmadd_pd(v1, v1, norm1_sum);
-
-        // norm2 += v2 * v2
         norm2_sum = _mm256_fmadd_pd(v2, v2, norm2_sum);
 
         i += 4;
@@ -179,13 +174,8 @@ unsafe fn compute_dot_and_norms_avx512(vec1: &[f64], vec2: &[f64]) -> (f64, f64,
         let v1 = _mm512_loadu_pd(vec1.as_ptr().add(i));
         let v2 = _mm512_loadu_pd(vec2.as_ptr().add(i));
 
-        // dot_product += v1 * v2
         dot_sum = _mm512_fmadd_pd(v1, v2, dot_sum);
-
-        // norm1 += v1 * v1
         norm1_sum = _mm512_fmadd_pd(v1, v1, norm1_sum);
-
-        // norm2 += v2 * v2
         norm2_sum = _mm512_fmadd_pd(v2, v2, norm2_sum);
 
         i += 8;
@@ -226,13 +216,8 @@ unsafe fn compute_dot_and_norms_neon(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
             let v1 = vld1q_f64(vec1.as_ptr().add(i));
             let v2 = vld1q_f64(vec2.as_ptr().add(i));
 
-            // dot_product += v1 * v2
             dot_sum = vfmaq_f64(dot_sum, v1, v2);
-
-            // norm1 += v1 * v1
             norm1_sum = vfmaq_f64(norm1_sum, v1, v1);
-
-            // norm2 += v2 * v2
             norm2_sum = vfmaq_f64(norm2_sum, v2, v2);
 
             i += 2;
