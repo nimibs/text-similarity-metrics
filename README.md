@@ -97,9 +97,9 @@ A vector-based similarity metric that measures the cosine of the angle between t
 
 **Key characteristics:**
 - Works with any f64 vector embeddings (word2vec, BERT, custom features, etc.)
-- Normalized to [0, 1]
-- Single-pass computation of dot product and magnitudes
+- SIMD Single-pass computation of dot product and magnitudes
 - Returns error if vectors have different lengths or contain zero vectors
+- Normalized to [0, 1]
 
 ```rust
 use text_similarity_metrics::cosine_similarity;
