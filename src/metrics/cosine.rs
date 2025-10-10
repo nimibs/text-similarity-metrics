@@ -1,5 +1,8 @@
 use std::fmt;
 
+#[cfg(target_arch = "aarch64")]
+use std::arch::is_aarch64_feature_detected;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CosineSimilarityError {
     DifferentLengths { len1: usize, len2: usize },
@@ -31,18 +34,32 @@ pub fn cosine_similarity(vec1: &[f64], vec2: &[f64]) -> Result<f64, CosineSimila
     }
 
     // Compute dot product and norms in a single pass
-    let mut dot_product = 0.0;
-    let mut norm1 = 0.0;
-    let mut norm2 = 0.0;
+    let (dot_product, norm1, norm2) = {
+        #[cfg(target_arch = "x86_64")]
+        {
+            if is_x86_feature_detected!("avx512f") {
+                unsafe { compute_dot_and_norms_avx512(vec1, vec2) }
+            } else if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+                unsafe { compute_dot_and_norms_avx2(vec1, vec2) }
+            } else {
+                compute_dot_and_norms_scalar(vec1, vec2)
+            }
+        }
 
-    for i in 0..vec1.len() {
-        let v1 = vec1[i];
-        let v2 = vec2[i];
+        #[cfg(target_arch = "aarch64")]
+        {
+            if is_aarch64_feature_detected!("neon") {
+                unsafe { compute_dot_and_norms_neon(vec1, vec2) }
+            } else {
+                compute_dot_and_norms_scalar(vec1, vec2)
+            }
+        }
 
-        dot_product += v1 * v2;
-        norm1 += v1 * v1;
-        norm2 += v2 * v2;
-    }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        {
+            compute_dot_and_norms_scalar(vec1, vec2)
+        }
+    };
 
     // Check for zero vectors
     if norm1 == 0.0 || norm2 == 0.0 {
@@ -61,6 +78,181 @@ pub fn cosine_similarity(vec1: &[f64], vec2: &[f64]) -> Result<f64, CosineSimila
     let similarity = (cosine + 1.0) / 2.0;
 
     Ok(similarity)
+}
+
+#[inline]
+fn compute_dot_and_norms_scalar(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
+    let mut dot_product = 0.0;
+    let mut norm1 = 0.0;
+    let mut norm2 = 0.0;
+
+    for i in 0..vec1.len() {
+        dot_product += vec1[i] * vec2[i];
+        norm1 += vec1[i] * vec1[i];
+        norm2 += vec2[i] * vec2[i];
+    }
+
+    (dot_product, norm1, norm2)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[target_feature(enable = "fma")]
+unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
+    use std::arch::x86_64::*;
+
+    let len = vec1.len();
+    let simd_len = len / 4 * 4;
+
+    let mut dot_sum = _mm256_setzero_pd();
+    let mut norm1_sum = _mm256_setzero_pd();
+    let mut norm2_sum = _mm256_setzero_pd();
+
+    // Process 4 f64 values at a time
+    let mut i = 0;
+    while i < simd_len {
+        let v1 = _mm256_loadu_pd(vec1.as_ptr().add(i));
+        let v2 = _mm256_loadu_pd(vec2.as_ptr().add(i));
+
+        // dot_product += v1 * v2
+        dot_sum = _mm256_fmadd_pd(v1, v2, dot_sum);
+
+        // norm1 += v1 * v1
+        norm1_sum = _mm256_fmadd_pd(v1, v1, norm1_sum);
+
+        // norm2 += v2 * v2
+        norm2_sum = _mm256_fmadd_pd(v2, v2, norm2_sum);
+
+        i += 4;
+    }
+
+    // Horizontal sum of the SIMD accumulators
+    let mut dot_product = horizontal_sum_avx2(dot_sum);
+    let mut norm1 = horizontal_sum_avx2(norm1_sum);
+    let mut norm2 = horizontal_sum_avx2(norm2_sum);
+
+    // Handle remaining elements
+    while i < len {
+        dot_product += vec1[i] * vec2[i];
+        norm1 += vec1[i] * vec1[i];
+        norm2 += vec2[i] * vec2[i];
+        i += 1;
+    }
+
+    (dot_product, norm1, norm2)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn horizontal_sum_avx2(v: std::arch::x86_64::__m256d) -> f64 {
+    use std::arch::x86_64::*;
+
+    // v = [a, b, c, d]
+    // Swap high and low 128-bit lanes: [c, d, a, b]
+    let high = _mm256_permute2f128_pd(v, v, 0x01);
+    // Add: [a+c, b+d, c+a, d+b]
+    let sum = _mm256_add_pd(v, high);
+    // Swap adjacent pairs: [b+d, a+c, d+b, c+a]
+    let swapped = _mm256_permute_pd(sum, 0b0101);
+    // Add: [a+b+c+d, ...]
+    let result = _mm256_add_pd(sum, swapped);
+    // Extract the lowest element
+    _mm256_cvtsd_f64(result)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f")]
+unsafe fn compute_dot_and_norms_avx512(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
+    use std::arch::x86_64::*;
+
+    let len = vec1.len();
+    let simd_len = len / 8 * 8;
+
+    let mut dot_sum = _mm512_setzero_pd();
+    let mut norm1_sum = _mm512_setzero_pd();
+    let mut norm2_sum = _mm512_setzero_pd();
+
+    // Process 8 f64 values at a time
+    let mut i = 0;
+    while i < simd_len {
+        let v1 = _mm512_loadu_pd(vec1.as_ptr().add(i));
+        let v2 = _mm512_loadu_pd(vec2.as_ptr().add(i));
+
+        // dot_product += v1 * v2
+        dot_sum = _mm512_fmadd_pd(v1, v2, dot_sum);
+
+        // norm1 += v1 * v1
+        norm1_sum = _mm512_fmadd_pd(v1, v1, norm1_sum);
+
+        // norm2 += v2 * v2
+        norm2_sum = _mm512_fmadd_pd(v2, v2, norm2_sum);
+
+        i += 8;
+    }
+
+    // Horizontal sum of the SIMD accumulators
+    let mut dot_product = _mm512_reduce_add_pd(dot_sum);
+    let mut norm1 = _mm512_reduce_add_pd(norm1_sum);
+    let mut norm2 = _mm512_reduce_add_pd(norm2_sum);
+
+    // Handle remaining elements
+    while i < len {
+        dot_product += vec1[i] * vec2[i];
+        norm1 += vec1[i] * vec1[i];
+        norm2 += vec2[i] * vec2[i];
+        i += 1;
+    }
+
+    (dot_product, norm1, norm2)
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn compute_dot_and_norms_neon(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f64) {
+    use std::arch::aarch64::*;
+
+    let len = vec1.len();
+    let simd_len = len / 2 * 2;
+
+    unsafe {
+        let mut dot_sum = vdupq_n_f64(0.0);
+        let mut norm1_sum = vdupq_n_f64(0.0);
+        let mut norm2_sum = vdupq_n_f64(0.0);
+
+        // Process 2 f64 values at a time
+        let mut i = 0;
+        while i < simd_len {
+            let v1 = vld1q_f64(vec1.as_ptr().add(i));
+            let v2 = vld1q_f64(vec2.as_ptr().add(i));
+
+            // dot_product += v1 * v2
+            dot_sum = vfmaq_f64(dot_sum, v1, v2);
+
+            // norm1 += v1 * v1
+            norm1_sum = vfmaq_f64(norm1_sum, v1, v1);
+
+            // norm2 += v2 * v2
+            norm2_sum = vfmaq_f64(norm2_sum, v2, v2);
+
+            i += 2;
+        }
+
+        // Horizontal sum of the SIMD accumulators
+        let mut dot_product = vaddvq_f64(dot_sum);
+        let mut norm1 = vaddvq_f64(norm1_sum);
+        let mut norm2 = vaddvq_f64(norm2_sum);
+
+        // Handle remaining elements
+        while i < len {
+            dot_product += vec1[i] * vec2[i];
+            norm1 += vec1[i] * vec1[i];
+            norm2 += vec2[i] * vec2[i];
+            i += 1;
+        }
+
+        (dot_product, norm1, norm2)
+    }
 }
 
 #[cfg(test)]
