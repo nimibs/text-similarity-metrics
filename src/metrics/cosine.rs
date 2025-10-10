@@ -140,20 +140,10 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
-unsafe fn horizontal_sum_avx2(v: std::arch::x86_64::__m256d) -> f64 {
-    use std::arch::x86_64::*;
-
-    // v = [a, b, c, d]
-    // Swap high and low 128-bit lanes: [c, d, a, b]
-    let high = _mm256_permute2f128_pd(v, v, 0x01);
-    // Add: [a+c, b+d, c+a, d+b]
-    let sum = _mm256_add_pd(v, high);
-    // Swap adjacent pairs: [b+d, a+c, d+b, c+a]
-    let swapped = _mm256_permute_pd(sum, 0b0101);
-    // Add: [a+b+c+d, ...]
-    let result = _mm256_add_pd(sum, swapped);
-    // Extract the lowest element
-    _mm256_cvtsd_f64(result)
+unsafe fn horizontal_sum_avx2(v: __m256d) -> f64 {
+    let arr = [0.0f64; 4];
+    _mm256_storeu_pd(arr.as_ptr() as *mut f64, v);
+    arr[0] + arr[1] + arr[2] + arr[3]
 }
 
 #[cfg(target_arch = "x86_64")]
