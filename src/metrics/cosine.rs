@@ -33,7 +33,6 @@ pub fn cosine_similarity(vec1: &[f64], vec2: &[f64]) -> Result<f64, CosineSimila
         });
     }
 
-    // Compute dot product and norms in a single pass
     let (dot_product, norm1, norm2) = {
         #[cfg(target_arch = "x86_64")]
         {
