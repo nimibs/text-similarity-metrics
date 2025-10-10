@@ -140,9 +140,10 @@ unsafe fn compute_dot_and_norms_avx2(vec1: &[f64], vec2: &[f64]) -> (f64, f64, f
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
-unsafe fn horizontal_sum_avx2(v: __m256d) -> f64 {
+unsafe fn horizontal_sum_avx2(v: std::arch::x86_64::__m256d) -> f64 {
     let arr = [0.0f64; 4];
     unsafe {
+        use std::arch::x86_64::*;
         _mm256_storeu_pd(arr.as_ptr() as *mut f64, v);
         arr[0] + arr[1] + arr[2] + arr[3]
     }
